@@ -22,7 +22,7 @@ class ExtractionTest {
         println("Time taken: ${System.currentTimeMillis() - startTime}")
         testResult(result)
     }
-
+    /*
     @Test
     fun testExtractionWithSignature() {
         val extractor = YouTubeExtractor.Builder()
@@ -34,6 +34,8 @@ class ExtractionTest {
         println("Time taken: ${System.currentTimeMillis() - startTime}")
         testResult(result)
     }
+
+     */
 
         @Test
     fun testExtractionAudioOnly() {

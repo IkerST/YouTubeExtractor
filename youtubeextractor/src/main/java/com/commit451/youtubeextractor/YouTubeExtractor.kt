@@ -69,13 +69,10 @@ class YouTubeExtractor private constructor(builder: Builder) {
             val url = "$BASE_URL/watch?v=$videoId"
             log("Extracting from URL $url")
 
-            val pageContent = urlToString(url)         
-
-            val doc = Jsoup.parse(pageContent)
-
+            val pageContent = urlToString(url)
             val ytPlayerConfigJson = Util.matchGroup("ytplayer.config\\s*=\\s*(\\{.*?\\});", pageContent, 1)
 
-            val playerConfigAdapter = moshi.adapter<PlayerConfig>(PlayerConfig::class.java)
+            val playerConfigAdapter = moshi.adapter(PlayerConfig::class.java)
             val ytPlayerConfig = playerConfigAdapter.fromJson(ytPlayerConfigJson)!!
             val playerArgs = ytPlayerConfig.args!!
                 
@@ -83,8 +80,8 @@ class YouTubeExtractor private constructor(builder: Builder) {
 
             val streams = parseStreams(playerArgs, playerUrl,audioOnly)
 
-            val playerResponseAdapter = moshi.adapter<PlayerResponse>(PlayerResponse::class.java)
-            val playerResponse = playerResponseAdapter.fromJson(playerArgs.playerResponse)!!
+            val playerResponseAdapter = moshi.adapter(PlayerResponse::class.java)
+            val playerResponse = playerResponseAdapter.fromJson(playerArgs.playerResponse!!)!!
             val videoDetails = playerResponse.videoDetails!!
 
             val extraction = YouTubeExtraction(videoId,
@@ -97,16 +94,6 @@ class YouTubeExtractor private constructor(builder: Builder) {
                     videoDetails.lengthSeconds)
             Single.just(extraction)
         }
-    }
-
-    private fun tryIgnoringException(block: () -> String): String? {
-        try {
-            return block.invoke()
-        } catch (e: Exception) {
-            //we tried our best
-            log(e.message)
-        }
-        return null
     }
 
     private fun urlToString(url: String): String {
