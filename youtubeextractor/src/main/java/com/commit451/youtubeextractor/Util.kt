@@ -45,8 +45,8 @@ internal object Util {
         return map
     }
 
-    fun combineLists(listA: List<String>, listB: List<String>): List<String> {
-        val fullList = mutableListOf<String>()
+    fun combineLists(listA: List<AdaptiveFormats>, listB: List<AdaptiveFormats>): List<AdaptiveFormats> {
+        val fullList = mutableListOf<AdaptiveFormats>()
         for (item in listA) {
             fullList.add(item)
         }

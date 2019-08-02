@@ -75,14 +75,22 @@ class YouTubeExtractor private constructor(builder: Builder) {
             val playerConfigAdapter = moshi.adapter(PlayerConfig::class.java)
             val ytPlayerConfig = playerConfigAdapter.fromJson(ytPlayerConfigJson)!!
             val playerArgs = ytPlayerConfig.args!!
-                
-            val playerUrl = formatPlayerUrl(ytPlayerConfig)
-
-            val streams = parseStreams(playerArgs, playerUrl,audioOnly)
 
             val playerResponseAdapter = moshi.adapter(PlayerResponse::class.java)
             val playerResponse = playerResponseAdapter.fromJson(playerArgs.playerResponse!!)!!
+
             val videoDetails = playerResponse.videoDetails!!
+            val adaptiveFormats = playerResponse.streamingData!!.adaptiveFormats
+            val otherFormats = playerResponse.streamingData!!.formats
+
+            val allFormats = Util.combineLists(adaptiveFormats!!, otherFormats!!)
+                
+            val playerUrl = formatPlayerUrl(ytPlayerConfig)
+
+            val streams = parseStreams(allFormats, playerUrl, audioOnly)
+            for (stream in streams) {
+                println(stream)
+            }
 
             val extraction = YouTubeExtraction(videoId,
                     videoDetails.title,
@@ -119,87 +127,48 @@ class YouTubeExtractor private constructor(builder: Builder) {
         return playerUrl
     }
 
-    private fun parseStreams(playerArgs: PlayerArgs, playerUrl: String, audioOnly: Boolean): List<Streams> {
-        val itags = if (audioOnly) {
-            parseAudioItags(playerArgs, playerUrl)
-        } else {
-            parseAllItags(playerArgs, playerUrl)
-        }
+       private fun parseStreams(formats: List<AdaptiveFormats>, playerUrl: String, audioOnly: Boolean): List<Streams> {
+            val itags = parseAllItags(formats, playerUrl)
 
-        return itags.map { Streams(it.key, it.value.format, it.value.resolution) }
+            var streams = itags.map { Streams(it.key, it.value.format, it.value.resolution, it.value.filesize) }
+            if (audioOnly){
+                streams = streams.filter {
+                    it.resolution == Streams.RESOLUTION_AUDIO
+                }
+            }
+
+            return streams
     }
 
-    private fun parseAllItags(playerArgs: PlayerArgs, playerUrl: String): Map<String, ItagItem> {
+    private fun parseAllItags(formats: List<AdaptiveFormats>, playerUrl: String): Map<String, ItagItem> {
         val urlAndItags = LinkedHashMap<String, ItagItem>()
-        val encodedUrlMap = playerArgs.urlEncodedFmtStreamMap ?: ""
-        val adaptiveUrlMap = playerArgs.adaptiveFmt ?: ""
-        val encodedUrlData = encodedUrlMap.split(",".toRegex()).filter { it.isNotEmpty() }
-        val adaptiveUrlData = adaptiveUrlMap.split(",".toRegex()).filter { it.isNotEmpty() }
-        val validUrlData = Util.combineLists(encodedUrlData, adaptiveUrlData)
+        var decryptCode: String? = null
 
-        for (urlDataStr in validUrlData) {
-            val tags = Util.compatParseMap(Parser.unescapeEntities(urlDataStr, true))
-            val itag = tags["itag"]?.toInt()
-            var decryptCode: String? = null
+        for (format in formats) {
+            val tags = Util.compatParseMap(Parser.unescapeEntities(format.cipher!!, true))
+            val itag = format.itag!!.toInt()
 
             if (ItagItem.isSupported(itag)) {
-                val itagItem = ItagItem.getItag(itag)
+                var itagItem = ItagItem.getItag(itag)
+                itagItem.filesize = format.contentLength
+
                 var streamUrl = tags["url"]
                 val signature = tags["s"]
                 if (signature != null) {
-                    //TODO remove the need to remove all \n. It breaks the regex we have
-                    
                     if (decryptCode == null){
-
+                        //TODO remove the need to remove all \n. It breaks the regex we have
                         val playerCode = urlToString(playerUrl)
                             .replace("\n", "")
                         
                         decryptCode = JavaScriptUtil.loadDecryptionCode(playerCode)
                     }
-                    streamUrl = streamUrl + "&sig=" + JavaScriptUtil.decryptSignature(signature, decryptCode)
-                }
-                if (streamUrl != null) {
-                    urlAndItags[streamUrl] = itagItem
-                }
-            }
-        }
-
-        return urlAndItags
-    }
-
-    private fun parseAudioItags(playerArgs: PlayerArgs, playerUrl: String): Map<String, ItagItem> {
-        val urlAndItags = LinkedHashMap<String, ItagItem>()
-        val encodedUrlMap = playerArgs.urlEncodedFmtStreamMap ?: ""
-        val adaptiveUrlMap = playerArgs.adaptiveFmt ?: "";
-        val encodedUrlData = encodedUrlMap.split(",".toRegex()).filter { it.isNotEmpty() }
-        val adaptiveUrlData = adaptiveUrlMap.split(",".toRegex()).filter { it.isNotEmpty() }
-        val validUrlData = Util.combineLists(encodedUrlData, adaptiveUrlData)
-
-        var decryptCode: String? = null
-
-        
-        for (urlDataStr in validUrlData) {
-            val tags = Util.compatParseMap(Parser.unescapeEntities(urlDataStr, true))
-            val itag = tags["itag"]?.toInt()
-
-            if (ItagItem.isSupported(itag) && ItagItem.isAudio(itag)) {
-                val itagItem = ItagItem.getItag(itag)
-                var streamUrl = tags["url"]
-                val signature = tags["s"]
-                if (signature != null) {
-                    //TODO remove the need to remove all \n. It breaks the regex we have
-
-                    if (decryptCode == null){
-                        val playerCode = urlToString(playerUrl)
-                            .replace("\n", "")
-                        decryptCode = JavaScriptUtil.loadDecryptionCode(playerCode)
-                    }
 
                     streamUrl = streamUrl + "&sig=" + JavaScriptUtil.decryptSignature(signature, decryptCode)
                 }
                 if (streamUrl != null) {
                     urlAndItags[streamUrl] = itagItem
                 }
+
             }
         }
 

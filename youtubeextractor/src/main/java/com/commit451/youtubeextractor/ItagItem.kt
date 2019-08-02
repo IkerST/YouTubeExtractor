@@ -1,6 +1,6 @@
 package com.commit451.youtubeextractor
 
-internal class ItagItem(val id: Int, val format: String, val resolution: String ) {
+internal class ItagItem(val id: Int, val format: String, val resolution: String, var filesize: Long? = null) {
 
     companion object {
 
