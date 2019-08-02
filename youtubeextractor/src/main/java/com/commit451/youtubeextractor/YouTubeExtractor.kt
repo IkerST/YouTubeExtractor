@@ -88,9 +88,7 @@ class YouTubeExtractor private constructor(builder: Builder) {
             val playerUrl = formatPlayerUrl(ytPlayerConfig)
 
             val streams = parseStreams(allFormats, playerUrl, audioOnly)
-            for (stream in streams) {
-                println(stream)
-            }
+
 
             val extraction = YouTubeExtraction(videoId,
                     videoDetails.title,
