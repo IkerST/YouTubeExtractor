@@ -60,7 +60,7 @@ extractor.extract("9d8wWcJLnFI", true)
     }, { t ->
         onError(t)
     })
-
+```
 
 ## Video Playback
 This library was only created to extract video stream URLs from YouTube, not provide a video player. [ExoMedia](https://github.com/brianwernick/ExoMedia) is a great library for playing the video streams to the user. See the sample app for an example.

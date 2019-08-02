@@ -7,17 +7,16 @@ group = 'com.github.Commit451'
 dependencies {
     api "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
 
-    api 'com.squareup.okhttp3:okhttp:3.11.0'
-    api 'com.squareup.moshi:moshi:1.6.0'
+    api 'com.squareup.okhttp3:okhttp:4.0.1'
+    api 'com.squareup.moshi:moshi:1.8.0'
 
-    api "io.reactivex.rxjava2:rxjava:2.2.3"
+    api "io.reactivex.rxjava2:rxjava:2.2.10"
 
     api 'org.jsoup:jsoup:1.11.3'
 
     api 'org.mozilla:rhino:1.7.10'
 
     testImplementation 'junit:junit:4.12'
-    api 'org.apache.commons:commons-collections4:4.3'
 
 }
 
