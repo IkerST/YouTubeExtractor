@@ -80,7 +80,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun bindVideoResult(result: YouTubeExtraction) {
-        val videoUrl = result.videoStreams.first().url
+        val videoUrl = result.streams.first().url
         Log.d("OnSuccess", "Got a result with the best url: $videoUrl")
         Glide.with(this)
                 .load(result.thumbnails.first().url)
