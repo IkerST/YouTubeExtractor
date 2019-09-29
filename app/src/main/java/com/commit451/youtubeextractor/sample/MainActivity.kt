@@ -1,6 +1,5 @@
 package com.commit451.youtubeextractor.sample
 
-import android.annotation.SuppressLint
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -33,7 +32,6 @@ class MainActivity : AppCompatActivity() {
     private val extractor = YouTubeExtractor.Builder()
             .build()
 
-    @SuppressLint("CheckResult")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -82,7 +80,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun bindVideoResult(result: YouTubeExtraction) {
-        val videoUrl = result.streams.first().url
+        val videoUrl = result.videoStreams.first().url
         Log.d("OnSuccess", "Got a result with the best url: $videoUrl")
         Glide.with(this)
                 .load(result.thumbnails.first().url)

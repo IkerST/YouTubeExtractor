@@ -7,6 +7,7 @@ import okhttp3.Request
 import org.jsoup.Jsoup
 import org.jsoup.parser.Parser
 
+
 /**
  * Class that allows you to extract stream data from a YouTube video
  * given its video id, which is typically contained within the YouTube video url, ie. https://www.youtube.com/watch?v=dQw4w9WgXcQ
@@ -50,7 +51,7 @@ class YouTubeExtractor private constructor(builder: Builder) {
     private var client: OkHttpClient
     private var moshi: Moshi
     private var debug = false
-    
+
     init {
         this.debug = builder.debug
         val clientBuilder = builder.okHttpClientBuilder ?: OkHttpClient.Builder()
@@ -64,53 +65,50 @@ class YouTubeExtractor private constructor(builder: Builder) {
      * @param videoId the video ID
      * @return the extracted result
      */
-    fun extract(videoId: String, audioOnly:Boolean = false): Single<YouTubeExtraction> {
+    fun extract(videoId: String): Single<YouTubeExtraction> {
         return Single.defer {
             val url = "$BASE_URL/watch?v=$videoId"
             log("Extracting from URL $url")
-
             val pageContent = urlToString(url)
+            val doc = Jsoup.parse(pageContent)
+
             val ytPlayerConfigJson = Util.matchGroup("ytplayer.config\\s*=\\s*(\\{.*?\\});", pageContent, 1)
-
-            val playerConfigAdapter = moshi.adapter(PlayerConfig::class.java)
-            val ytPlayerConfig = playerConfigAdapter.fromJson(ytPlayerConfigJson)!!
+            val ytPlayerConfig = moshi.adapter<PlayerConfig>(PlayerConfig::class.java).fromJson(ytPlayerConfigJson)!!
             val playerArgs = ytPlayerConfig.args!!
-
-            val playerResponseAdapter = moshi.adapter(PlayerResponse::class.java)
-            val playerResponse = playerResponseAdapter.fromJson(playerArgs.playerResponse!!)!!
-
-            val videoDetails = playerResponse.videoDetails!!
-            val adaptiveFormats = playerResponse.streamingData!!.adaptiveFormats
-            val otherFormats = playerResponse.streamingData!!.formats
-
-            val allFormats = Util.combineLists(adaptiveFormats!!, otherFormats!!)
-                
             val playerUrl = formatPlayerUrl(ytPlayerConfig)
-
-            val streams = parseStreams(allFormats, playerUrl, audioOnly)
-
-
+            val videoStreams = parseVideoStreams(playerArgs, playerUrl)
+            val description = tryIgnoringException { doc.select("p[id=\"eow-description\"]").first().html() }
             val extraction = YouTubeExtraction(videoId,
-                    videoDetails.title,
-                    streams,
+                    playerArgs.title,
+                    videoStreams,
                     extractThumbnails(videoId),
-                    videoDetails.author,
-                    videoDetails.shortDescription,
-                    videoDetails.viewCount,
-                    videoDetails.lengthSeconds)
+                    playerArgs.author,
+                    description,
+                    playerArgs.viewCount?.toLongOrNull(),
+                    playerArgs.lengthSeconds?.toLongOrNull())
             Single.just(extraction)
         }
+    }
+
+    private fun tryIgnoringException(block: () -> String): String? {
+        try {
+            return block.invoke()
+        } catch (e: Exception) {
+            //we tried our best
+            log(e.message)
+        }
+        return null
     }
 
     private fun urlToString(url: String): String {
         val request = Request.Builder()
                 .url(url)
-                .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/54.0")
                 .build()
 
-        val res = client.newCall(request).execute()
-
-        return res.body?.string() ?: throw Exception("Unable to connect")
+        return client.newCall(request)
+                .execute()
+                .body()
+                ?.string() ?: throw Exception("Unable to connect")
     }
 
     private fun formatPlayerUrl(playerConfig: PlayerConfig): String {
@@ -125,48 +123,35 @@ class YouTubeExtractor private constructor(builder: Builder) {
         return playerUrl
     }
 
-       private fun parseStreams(formats: List<AdaptiveFormats>, playerUrl: String, audioOnly: Boolean): List<Streams> {
-            val itags = parseAllItags(formats, playerUrl)
-
-            var streams = itags.map { Streams(it.key, it.value.format, it.value.resolution, it.value.filesize) }
-            if (audioOnly){
-                streams = streams.filter {
-                    it.resolution == Streams.RESOLUTION_AUDIO
-                }
-            }
-
-            return streams
+    private fun parseVideoStreams(playerArgs: PlayerArgs, playerUrl: String): List<VideoStream> {
+        val itags = parseVideoItags(playerArgs, playerUrl)
+        return itags.map { VideoStream(it.key, it.value.format, it.value.resolution) }
     }
 
-    private fun parseAllItags(formats: List<AdaptiveFormats>, playerUrl: String): Map<String, ItagItem> {
+    private fun parseVideoItags(playerArgs: PlayerArgs, playerUrl: String): Map<String, ItagItem> {
         val urlAndItags = LinkedHashMap<String, ItagItem>()
-        var decryptCode: String? = null
+        val encodedUrlMap = playerArgs.urlEncodedFmtStreamMap ?: ""
+        val validUrlData = encodedUrlMap.split(",".toRegex()).filter { it.isNotEmpty() }
+        for (urlDataStr in validUrlData) {
 
-        for (format in formats) {
-            val tags = Util.compatParseMap(Parser.unescapeEntities(format.cipher!!, true))
-            val itag = format.itag!!.toInt()
+            val tags = Util.compatParseMap(Parser.unescapeEntities(urlDataStr, true))
+
+            val itag = tags["itag"]?.toInt()
 
             if (ItagItem.isSupported(itag)) {
-                var itagItem = ItagItem.getItag(itag)
-                itagItem.filesize = format.contentLength
-
+                val itagItem = ItagItem.getItag(itag)
                 var streamUrl = tags["url"]
                 val signature = tags["s"]
                 if (signature != null) {
-                    if (decryptCode == null){
-                        //TODO remove the need to remove all \n. It breaks the regex we have
-                        val playerCode = urlToString(playerUrl)
+                    log("Signature not found, decrypting signature for $streamUrl")
+                    //TODO remove the need to remove all \n. It breaks the regex we have
+                    val playerCode = urlToString(playerUrl)
                             .replace("\n", "")
-                        
-                        decryptCode = JavaScriptUtil.loadDecryptionCode(playerCode)
-                    }
-
-                    streamUrl = streamUrl + "&sig=" + JavaScriptUtil.decryptSignature(signature, decryptCode)
+                    streamUrl = streamUrl + "&signature=" + JavaScriptUtil.decryptSignature(signature, JavaScriptUtil.loadDecryptionCode(playerCode))
                 }
                 if (streamUrl != null) {
                     urlAndItags[streamUrl] = itagItem
                 }
-
             }
         }
 

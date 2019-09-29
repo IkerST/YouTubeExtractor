@@ -6,7 +6,7 @@ package com.commit451.youtubeextractor
 data class YouTubeExtraction(
         val videoId: String,
         val title: String?,
-        val streams: List<Streams>,
+        val videoStreams: List<VideoStream>,
         val thumbnails: List<Thumbnail>,
         val author: String?,
         val description: String?,

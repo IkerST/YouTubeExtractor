@@ -48,20 +48,6 @@ val extraction = extractor.extract("9d8wWcJLnFI")
     .blockingGet()
 ```
 
-There is also an audio only paramerter for the extract function which is set to false by default, to extract only the audio url's use the following code:
-```kotlin
-val extractor = YouTubeExtractor.Builder()
-            .build()
-extractor.extract("9d8wWcJLnFI", true)
-    .subscribeOn(Schedulers.io())
-    .observeOn(AndroidSchedulers.mainThread())
-    .subscribe({ extraction ->
-        bindVideoResult(extraction)
-    }, { t ->
-        onError(t)
-    })
-```
-
 ## Video Playback
 This library was only created to extract video stream URLs from YouTube, not provide a video player. [ExoMedia](https://github.com/brianwernick/ExoMedia) is a great library for playing the video streams to the user. See the sample app for an example.
 
